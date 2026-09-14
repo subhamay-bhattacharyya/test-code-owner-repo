@@ -1,64 +1,88 @@
-name: Add Enterprise Team as Repository Collaborator
+name: Add Team Members as Repository Collaborators
 
 on:
   workflow_dispatch:
 
 jobs:
-  add-team-collaborator:
-    name: Add team-subhamay as Collaborator
+  add-collaborators:
+    name: Add team-subhamay members as Collaborators
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      administration: write
+    
+    strategy:
+      matrix:
+        username: 
+          - bsubhamay
+          - bsubhamay-approver
+          - bsubhamay-approver-2
     
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      - name: Add enterprise team to repository
+      - name: Add ${{ matrix.username }} as collaborator
+        run: |
+          echo "Adding ${{ matrix.username }} with maintain permission..."
+          
+          gh api repos/${{ github.repository }}/collaborators/${{ matrix.username }} \
+            -X PUT \
+            -f permission='maintain' \
+            -f notification_setting='notifications_enabled'
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ ${{ matrix.username }} added with maintain permission"
+          else
+            echo "❌ Failed to add ${{ matrix.username }}"
+            exit 1
+          fi
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          echo "Adding enterprise team-subhamay as collaborator..."
-          
-          ENTERPRISE="bhattacharyya-subhamay"
-          TEAM_ID="19364086"
-          REPO_OWNER="subhamay-bhattacharyya-cfn"
-          REPO_NAME="cloudformation-template"
-          
-          # Use enterprise API endpoint for enterprise-managed teams
-          RESPONSE=$(gh api \
-            "enterprises/$ENTERPRISE/teams/$TEAM_ID/repositories/$REPO_OWNER/$REPO_NAME" \
-            -X PUT \
-            -f permission='maintain' 2>&1)
-          
-          if echo "$RESPONSE" | grep -q "404"; then
-            echo "⚠️ Enterprise API endpoint not available, trying alternative..."
-            
-            # Fallback: Add individual team members instead
-            echo "Adding team members as collaborators..."
-            gh api repos/$REPO_OWNER/$REPO_NAME/collaborators/bsubhamay \
-              -X PUT \
-              -f permission='maintain'
-            
-            gh api repos/$REPO_OWNER/$REPO_NAME/collaborators/bsubhamay-approver \
-              -X PUT \
-              -f permission='maintain'
-            
-            gh api repos/$REPO_OWNER/$REPO_NAME/collaborators/bsubhamay-approver-2 \
-              -X PUT \
-              -f permission='maintain'
-            
-            echo "✅ Team members added as collaborators with maintain permission"
-          else
-            echo "✅ Enterprise team added with maintain permission"
-            echo "$RESPONSE" | jq .
-          fi
       
-      - name: Summary
-        if: success()
+      - name: Verify ${{ matrix.username }} access
         run: |
-          echo "## ✅ Team Collaborator Configuration" >> $GITHUB_STEP_SUMMARY
-          echo "Team members have been added with maintain permission:" >> $GITHUB_STEP_SUMMARY
-          echo "- bsubhamay (Subhamay Bhattacharyya)" >> $GITHUB_STEP_SUMMARY
-          echo "- bsubhamay-approver (Samsung)" >> $GITHUB_STEP_SUMMARY
-          echo "- bsubhamay-approver-2 (Thomas)" >> $GITHUB_STEP_SUMMARY
+          echo "Verifying ${{ matrix.username }} access..."
+          
+          COLLAB=$(gh api repos/${{ github.repository }}/collaborators/${{ matrix.username }})
+          PERMISSION=$(echo "$COLLAB" | jq -r '.permission')
+          
+          echo "Username: ${{ matrix.username }}"
+          echo "Permission: $PERMISSION"
+          
+          if [ "$PERMISSION" = "maintain" ]; then
+            echo "✅ Verified maintain permission"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+    
+    outputs:
+      status: success
+  
+  summary:
+    name: Summary
+    runs-on: ubuntu-latest
+    needs: add-collaborators
+    if: success()
+    
+    steps:
+      - name: Post Summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          ## ✅ Team Members Added as Collaborators
+          
+          The following team members now have **maintain** permission:
+          
+          - ✅ **bsubhamay** (Subhamay Bhattacharyya)
+          - ✅ **bsubhamay-approver** (Samsung)
+          - ✅ **bsubhamay-approver-2** (Thomas)
+          
+          ### What they can do:
+          - ✅ Be used in CODEOWNERS file
+          - ✅ Review and approve PRs
+          - ✅ Push to protected branches
+          - ✅ Merge pull requests
+          - ✅ Manage repository settings
+          
+          ### Next Steps:
+          - [ ] Update CODEOWNERS to use team members or team reference
+          - [ ] Test branch creation
+          - [ ] Test CODEOWNERS in PR
+          EOF
