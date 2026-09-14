@@ -16,7 +16,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           # Add team-subhamay with maintain permission
-          gh api repos/${{ github.repository }}/teams/ent:team-subhamay \
+          gh api repos/subhamay-bhattacharyya/${{ github.repository }}/teams/ent:team-subhamay \
             -X PUT \
             -f permission='maintain' \
             -f notification_setting='notifications_enabled'
@@ -25,7 +25,7 @@ jobs:
       
       - name: Verify team access
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           # Verify the team was added
           gh api repos/${{ github.repository }}/teams/ent:team-subhamay
