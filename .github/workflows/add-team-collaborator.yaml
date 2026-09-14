@@ -14,8 +14,6 @@ jobs:
       matrix:
         username: 
           - bsubhamay
-          - bsubhamay-approver
-          - bsubhamay-approver-2
     
     steps:
       - name: Add ${{ matrix.username }} as collaborator
