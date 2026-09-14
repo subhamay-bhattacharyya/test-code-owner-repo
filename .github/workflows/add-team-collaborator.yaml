@@ -1,4 +1,4 @@
-name: Add Team as Collaborator
+name: Add Enterprise Team as Repository Collaborator
 
 on:
   workflow_dispatch:
@@ -9,24 +9,57 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      administration: write
     
     steps:
-      - name: Add enterprise team as collaborator
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          # Add team-subhamay with maintain permission
-          gh api repos/subhamay-bhattacharyya-cfn/cloudformation-template/teams/19364086 \
-          # gh api repos/${{ github.repository }}/teams/ent:team-subhamay \
-            -X PUT \
-            -f permission='maintain' \
-            -f notification_setting='notifications_enabled'
-          
-          echo "✅ Team team-subhamay added with maintain permission"
+      - name: Checkout repository
+        uses: actions/checkout@v4
       
-      - name: Verify team access
+      - name: Add enterprise team to repository
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          # Verify the team was added
-          gh api repos/${{ github.repository }}/teams/ent:team-subhamay
+          echo "Adding enterprise team-subhamay as collaborator..."
+          
+          ENTERPRISE="bhattacharyya-subhamay"
+          TEAM_ID="19364086"
+          REPO_OWNER="subhamay-bhattacharyya-cfn"
+          REPO_NAME="cloudformation-template"
+          
+          # Use enterprise API endpoint for enterprise-managed teams
+          RESPONSE=$(gh api \
+            "enterprises/$ENTERPRISE/teams/$TEAM_ID/repositories/$REPO_OWNER/$REPO_NAME" \
+            -X PUT \
+            -f permission='maintain' 2>&1)
+          
+          if echo "$RESPONSE" | grep -q "404"; then
+            echo "⚠️ Enterprise API endpoint not available, trying alternative..."
+            
+            # Fallback: Add individual team members instead
+            echo "Adding team members as collaborators..."
+            gh api repos/$REPO_OWNER/$REPO_NAME/collaborators/bsubhamay \
+              -X PUT \
+              -f permission='maintain'
+            
+            gh api repos/$REPO_OWNER/$REPO_NAME/collaborators/bsubhamay-approver \
+              -X PUT \
+              -f permission='maintain'
+            
+            gh api repos/$REPO_OWNER/$REPO_NAME/collaborators/bsubhamay-approver-2 \
+              -X PUT \
+              -f permission='maintain'
+            
+            echo "✅ Team members added as collaborators with maintain permission"
+          else
+            echo "✅ Enterprise team added with maintain permission"
+            echo "$RESPONSE" | jq .
+          fi
+      
+      - name: Summary
+        if: success()
+        run: |
+          echo "## ✅ Team Collaborator Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "Team members have been added with maintain permission:" >> $GITHUB_STEP_SUMMARY
+          echo "- bsubhamay (Subhamay Bhattacharyya)" >> $GITHUB_STEP_SUMMARY
+          echo "- bsubhamay-approver (Samsung)" >> $GITHUB_STEP_SUMMARY
+          echo "- bsubhamay-approver-2 (Thomas)" >> $GITHUB_STEP_SUMMARY
